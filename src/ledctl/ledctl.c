@@ -119,7 +119,7 @@ struct ibpi_state {
 static struct list ibpi_list;
 
 /**
- * @brief slot request parametres
+ * @brief slot request parameters
  *
  * This structure contains all possible parameters for slot related commands.
  */
@@ -392,7 +392,7 @@ static struct ibpi_state *_ibpi_state_get(const char *name)
 	} else if (strcmp(name, "ses_cons_check") == 0) {
 		ibpi = LED_SES_REQ_CONS_CHECK;
 	} else if (strcmp(name, "ses_hotspare") == 0) {
-		ibpi = LED_SES_REQ_HOSTSPARE;
+		ibpi = LED_SES_REQ_HOTSPARE;
 	} else if (strcmp(name, "ses_rsvd_dev") == 0) {
 		ibpi = LED_SES_REQ_RSVD_DEV;
 	} else if (strcmp(name, "ses_ok") == 0) {
@@ -723,7 +723,8 @@ ledctl_status_code_t slot_execute(struct led_ctx *ctx, struct slot_request *slot
 		led_status_t set_rc = LEDCTL_STATUS_SUCCESS;
 		char buf[IPBI2STR_BUFF_SIZE];
 
-		if (led_slot_state(slot) == slot_req->state) {
+		if (slot_req->state != LED_IBPI_PATTERN_LOCATE_OFF
+		    && led_slot_state(slot) == slot_req->state) {
 			log_warning("Led state: %s is already set for the slot.",
 				    ibpi2str(slot_req->state, buf, sizeof(buf)));
 		} else {

@@ -151,7 +151,7 @@ void LED_SYM_PUBLIC led_cntrl_list_free(struct led_cntrl_list *cntrls);
 void LED_SYM_PUBLIC led_cntrl_list_reset(struct led_cntrl_list *cntrls);
 
 /**
- * @brief Iterator to retrieve next contrl list entry from controller list
+ * @brief Iterator to retrieve next controller list entry from controller list
  *
  * @param[in] cntrls	Opaque data type for controller list
  * @return struct led_cntrl_list_entry or NULL if no more are available
@@ -159,7 +159,7 @@ void LED_SYM_PUBLIC led_cntrl_list_reset(struct led_cntrl_list *cntrls);
 LED_SYM_PUBLIC struct led_cntrl_list_entry *led_cntrl_next(struct led_cntrl_list *cntrls);
 
 /**
- * @brief Iterator to retrieve previous contrl list entry from controller list
+ * @brief Iterator to retrieve previous controller list entry from controller list
  *
  * @param[in] cntrls	Opaque data type for controller list
  * @return struct led_cntrl_list_entry or NULL if no more are available
@@ -250,7 +250,7 @@ enum led_ibpi_pattern {
 	LED_SES_REQ_IFA,
 	LED_SES_REQ_ICA,
 	LED_SES_REQ_CONS_CHECK,
-	LED_SES_REQ_HOSTSPARE,
+	LED_SES_REQ_HOTSPARE,
 	LED_SES_REQ_RSVD_DEV,
 	LED_SES_REQ_OK,
 	LED_SES_REQ_IDENT,

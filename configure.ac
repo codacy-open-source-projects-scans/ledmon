@@ -58,6 +58,9 @@ AM_CPPFLAGS='-D_DEBUG -D_GNU_SOURCE -D_DEFAULT_SOURCE -DDMALLOC_DISABLE -DBUILD_
 AC_DEFUN([AX_AM_CFLAGS_ADD],[AX_CHECK_COMPILE_FLAG($1, AM_CFLAGS="$AM_CFLAGS $1")])
 AX_AM_CFLAGS_ADD([-Wformat -Werror=format-security])
 AX_AM_CFLAGS_ADD([-Werror=format-overflow=2])
+AX_AM_CFLAGS_ADD([-Wno-strict-overflow])
+AX_AM_CFLAGS_ADD([-Wno-delete-null-pointer-checks])
+AX_AM_CFLAGS_ADD([-Wwrapv])
 AX_AM_CFLAGS_ADD([-Werror=format-truncation=1])
 AX_AM_CFLAGS_ADD([-Werror=shift-negative-value])
 AX_AM_CFLAGS_ADD([-Werror=alloca])
@@ -111,19 +114,6 @@ AM_CONDITIONAL([SYSTEMD_CONDITION], [test "$SYSTEMD_STR" = yes])
 # target directory for ledmon service file
 AC_SUBST([SYSTEMD_PATH], "$(pkg-config systemd --variable=systemdsystemunitdir)")
 
-
-AC_ARG_ENABLE([test],
-    [AS_HELP_STRING([--enable-test],
-                    [enable test cases, run using  'make check'])],
-    [with_test=${enableval}],
-    [with_test=no])
-
-AM_CONDITIONAL([WITH_TEST], [test "x$with_test" = "xyes"])
-
-if test "x${with_test}" = "xyes"; then
-    PKG_CHECK_MODULES([LIBCHECK], [check >= 0.9.8 ])
-fi
-
 # Add configure option to build without library
 AC_ARG_ENABLE([library],
     [AS_HELP_STRING([--enable-library],
@@ -131,7 +121,32 @@ AC_ARG_ENABLE([library],
     [with_library=${enableval}],
     [with_library=no])
 
+AC_ARG_ENABLE([test],
+    [AS_HELP_STRING([--enable-test],
+                    [enable test cases, run using  'make check', requires --enable-library])],
+    [with_test=${enableval}],
+    [with_test=no])
+
+AM_CONDITIONAL([WITH_TEST], [test "x$with_test" = "xyes"])
+
+if test "x${with_test}" = "xyes"; then
+    PKG_CHECK_MODULES([LIBCHECK], [check >= 0.9.8 ])
+    # We need the library enabled if we are going to run the tests
+    if test "x${with_library}" = "xno"; then
+        AC_MSG_ERROR([--enable-library is required when specifying --enable-test])
+    fi
+fi
+
 AM_CONDITIONAL([WITH_LIBRARY], [test "x$with_library" = "xyes"])
+
+# Add configure option to disable documentation building
+AC_ARG_ENABLE([doc],
+    [AS_HELP_STRING([--disable-doc],
+        [do not install ledmon documentation])],
+    [with_doc=${enableval}],
+    [with_doc=yes])
+
+AM_CONDITIONAL([WITH_DOC], [test "x$with_doc" = "xyes"])
 
 AC_CONFIG_FILES([Makefile
                  ledmon.pc
@@ -153,5 +168,5 @@ $PACKAGE_NAME $VERSION configuration:
   Preprocessor flags:      ${AM_CPPFLAGS} ${CPPFLAGS}
   C compiler flags:        ${AM_CFLAGS} ${CFLAGS}
   Common install location: ${prefix}
-  configure parameters:    --enable-systemd=${SYSTEMD_STR} --enable-library=${with_library} --enable-test=${with_test}
+  configure parameters:    --enable-systemd=${SYSTEMD_STR} --enable-library=${with_library} --enable-test=${with_test} --enable-doc=${with_doc}
 ])
