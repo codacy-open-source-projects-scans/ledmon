@@ -65,19 +65,21 @@ typedef enum  {
 	LED_STATUS_OUT_OF_RANGE,
 	LED_STATUS_INVALID_NODE,
 	LED_STATUS_DATA_ERROR = 6,
+	LED_STATUS_IBPI_DETERMINE_ERROR = 7,
 	LED_STATUS_INVALID_PATH = 8,
 	LED_STATUS_INVALID_SUBOPTION,
 	LED_STATUS_INVALID_STATE = 10,
 	LED_STATUS_SIZE_ERROR,
-	LED_STATUS_FILE_OPEN_ERROR,
+	LED_STATUS_FILE_OPEN_ERROR = 12,
 	LED_STATUS_FILE_READ_ERROR,
-	LED_STATUS_FILE_WRITE_ERROR,
+	LED_STATUS_FILE_WRITE_ERROR = 14,
 	LED_STATUS_FILE_LOCK_ERROR,
 	LED_STATUS_DIR_OPEN_ERROR,
 	LED_STATUS_SYSFS_PATH_ERROR,
 	LED_STATUS_SYSFS_INIT_ERROR,
 	LED_STATUS_SYSFS_SCAN_ERROR,
 	LED_STATUS_SYSFS_RESET_ERROR,
+	LED_STATUS_LIST_EMPTY = 21,
 	LED_STATUS_LIST_INIT_ERROR = 22,
 	LED_STATUS_BLOCK_LIST_ERROR,
 	LED_STATUS_VOLUM_LIST_ERROR,
@@ -85,12 +87,17 @@ typedef enum  {
 	LED_STATUS_SLAVE_LIST_ERROR,
 	LED_STATUS_CNTNR_LIST_ERROR,
 	LED_STATUS_INVALID_FORMAT,
+	LED_STATUS_ONEXIT_ERROR = 31,
+	LED_STATUS_INVALID_CONTROLLER = 32,
 	LED_STATUS_NOT_SUPPORTED = 33,
 	LED_STATUS_STAT_ERROR = 34,
 	LED_STATUS_CMDLINE_ERROR = 35,
+	LED_STATUS_NOT_A_PRIVILEGED_USER = 36,
 	LED_STATUS_ENCLO_LIST_ERROR = 37,
 	LED_STATUS_SLOTS_LIST_ERROR,
-	LED_STATUS_CONFIG_FILE_ERROR,
+	LED_STATUS_CONFIG_FILE_ERROR = 39,
+	LED_STATUS_LOG_FILE_ERROR = 40,
+	LED_STATUS_UNDEFINED
 } led_status_t;
 
 /**
@@ -241,6 +248,7 @@ enum led_ibpi_pattern {
 	LED_IBPI_PATTERN_LOCATE_OFF,
 	LED_IBPI_PATTERN_ADDED,
 	LED_IBPI_PATTERN_REMOVED,
+	LED_IBPI_PATTERN_LOCATE_AND_FAILED_DRIVE,
 	/*
 	 * Below are SES-2 codes. Note that by default most IBPI messages are
 	 * translated into SES when needed but SES codes can be added also.
@@ -264,6 +272,7 @@ enum led_ibpi_pattern {
 	LED_SES_REQ_DEV_OFF,
 	LED_SES_REQ_FAULT,
 	LED_SES_REQ_PRDFAIL,
+	LED_SES_REQ_IDENT_AND_FAULT,
 	led_ibpi_pattern_count,
 };
 
@@ -314,10 +323,11 @@ void LED_SYM_PUBLIC led_log_level_set(struct led_ctx *ctx, enum led_log_level_en
 led_status_t LED_SYM_PUBLIC led_scan(struct led_ctx *ctx);
 
 /**
- * @brief Used to lookup a block device node to name used by library
+ * @brief Used to lookup a block device node to name used by library.  This function should be
+ * called with its output being used as input for functions: led_is_management_supported, led_set.
  *
  * @param[in]	name			Device node to lookup
- * @param[out]	normalized_name		Normalized device name
+ * @param[out]	normalized_name		Normalized device name, size >= PATH_MAX
  * @return led_status_t LED_STATUS_SUCCESS on success, else error reason.
  *
  * Note: both parameters are expected to have a size of PATH_MAX
@@ -328,17 +338,18 @@ led_status_t LED_SYM_PUBLIC led_device_name_lookup(const char *name, char *norma
  * @brief Given a block device path, returns if it has LED hardware support via library
  *
  * @param[in]	ctx	Library context
- * @param[in]	path	Device path
+ * @param[in]	path	Device path, this is the result of led_device_name_lookup
  * @return enum led_cntrl_type which indicates which controller supports this device path,
  *		LED_CNTRL_TYPE_UNKNOWN if not supported
  */
-enum led_cntrl_type led_is_management_supported(struct led_ctx *ctx, const char *path);
+enum led_cntrl_type LED_SYM_PUBLIC led_is_management_supported(struct led_ctx *ctx,
+							       const char *path);
 
 /**
  * @brief Set the ibpi pattern for the specified device
  *
  * @param[in]	ctx	Library context
- * @param[in]	path	Device path
+ * @param[in]	path	Device path, this is the result of led_device_name_lookup
  * @param[in]	ibpi	Current ibpi value
  * @return led_status_t LED_STATUS_SUCCESS on success, else error reason.
  *
@@ -348,7 +359,8 @@ led_status_t LED_SYM_PUBLIC led_set(struct led_ctx *ctx, const char *path,
 				    enum led_ibpi_pattern ibpi);
 
 /**
- * @brief Flush the changes to hardware
+ * @brief Flush the changes to hardware, this function is required after calling 1 or more calls
+ * to led_set for the changes to take effect.  This function is not needed when using the slot API.
  *
  * @param[in]	ctx	Library context
  */

@@ -7,7 +7,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <check.h>
+#include <errno.h>
 #include <led/libled.h>
 
 /* Globla context which is initialized in setup and free'd in teardown */
@@ -25,12 +27,12 @@ void setup(void)
 	led_status_t status = led_new(&ctx);
 
 	if (status != LED_STATUS_SUCCESS) {
-		printf("%s: led_new %d", __func__, status);
+		printf("%s: led_new %u", __func__, status);
 		exit(EXIT_FAILURE);
 	}
 	status = led_scan(ctx);
 	if (status != LED_STATUS_SUCCESS) {
-		printf("%s: led_scan %d", __func__, status);
+		printf("%s: led_scan %u", __func__, status);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -40,7 +42,7 @@ void teardown(void)
 	led_status_t status = led_free(ctx);
 
 	if (status != LED_STATUS_SUCCESS) {
-		printf("%s: led_free %d", __func__, status);
+		printf("%s: led_free %u", __func__, status);
 		exit(EXIT_FAILURE);
 	}
 }
@@ -49,7 +51,6 @@ void setup_device_filters(void)
 {
 	int num_filters = 0;
 	char *found = NULL;
-	char *t = NULL;
 	char *tmp_filters = getenv("LEDMONTEST_SLOT_FILTER");
 
 	if (tmp_filters) {
@@ -91,19 +92,40 @@ void free_device_filters(void)
 	}
 }
 
+void block_device_check(const char *path)
+{
+	struct stat block_dev;
+	int rc;
+
+	if (!path)
+		return;
+
+	rc = stat(path, &block_dev);
+	if (rc != 0) {
+		int errno_cpy = errno;
+
+		ck_assert_msg(rc == 0,
+				"stat failed for %s, errno: %s", path, strerror(errno_cpy));
+		return;
+	}
+
+	ck_assert_msg((block_dev.st_mode & S_IFMT) == S_IFBLK,
+			"Expecting block device 0x%x block_dev.st_mode", block_dev.st_mode);
+}
+
 START_TEST(test_load_unload)
 {
 	// Simply create a context and free it when we already have one created in setup/teardown
 	struct led_ctx *lctx = NULL;
 	led_status_t status = led_new(&lctx);
 
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_new = %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_new = %u", status);
 
 	status = led_scan(lctx);
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_scan = %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_scan = %u", status);
 
 	status = led_free(lctx);
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_free = %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_free = %u", status);
 }
 END_TEST
 
@@ -113,7 +135,7 @@ START_TEST(test_list_controllers)
 	struct led_cntrl_list *cl = NULL;
 	led_status_t status = led_cntrls_get(ctx, &cl);
 
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_cntrls_get %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_cntrls_get %u", status);
 	bool devices_found = false;
 
 	if (status == LED_STATUS_SUCCESS) {
@@ -124,7 +146,7 @@ START_TEST(test_list_controllers)
 			enum led_cntrl_type t = led_cntrl_type(ce);
 
 			devices_found = true;
-			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %d cntrl type", t);
+			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %u cntrl type", t);
 		}
 
 		led_cntrl_list_reset(cl);
@@ -132,7 +154,7 @@ START_TEST(test_list_controllers)
 			ck_assert_msg(led_cntrl_path(ce) != NULL, "led_cntrl_path returned NULL");
 			enum led_cntrl_type t = led_cntrl_type(ce);
 
-			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %d cntrl type", t);
+			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %u cntrl type", t);
 		}
 
 		led_cntrl_list_free(cl);
@@ -149,7 +171,7 @@ START_TEST(test_list_slots)
 	bool devices_found = false;
 	led_status_t status = led_slots_get(ctx, &sl);
 
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_slots_get %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_slots_get %u", status);
 	if (status == LED_STATUS_SUCCESS) {
 		struct led_slot_list_entry *se;
 
@@ -157,9 +179,11 @@ START_TEST(test_list_slots)
 			ck_assert_msg(led_slot_id(se) != NULL, "led_slot_id returned NULL");
 			enum led_cntrl_type t = led_slot_cntrl(se);
 
-			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %d cntrl type", t);
+			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %u cntrl type", t);
 			devices_found = true;
 			// TODO: Check led ibpi pattern and validate
+
+			block_device_check(led_slot_device(se));
 		}
 
 		led_slot_list_reset(sl);
@@ -167,8 +191,10 @@ START_TEST(test_list_slots)
 			ck_assert_msg(led_slot_id(se) != NULL, "led_slot_id returned NULL");
 			enum led_cntrl_type t = led_slot_cntrl(se);
 
-			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %d cntrl type", t);
+			ck_assert_msg(((int)t >= 1 && (int)t <= 6),  "invalid %u cntrl type", t);
 			// TODO: Check led ibpi pattern and validate
+
+			block_device_check(led_slot_device(se));
 		}
 
 		led_slot_list_free(sl);
@@ -185,7 +211,7 @@ START_TEST(test_toggle_slots)
 	bool devices_found = false;
 	led_status_t status = led_slots_get(ctx, &sl);
 
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_slots_get %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_slots_get %u", status);
 	if (status == LED_STATUS_SUCCESS) {
 		struct led_slot_list_entry *se;
 
@@ -199,11 +225,11 @@ START_TEST(test_toggle_slots)
 				status = led_slot_set(ctx, se, led);
 				devices_found = true;
 				ck_assert_msg(status == LED_STATUS_SUCCESS,
-						"led_slot_set %d", status);
+						"led_slot_set %u", status);
 				enum led_ibpi_pattern after_set = led_slot_state(se);
 
 				ck_assert_msg(led == after_set,
-						"%s led_slot_state expected = (%d) != actual (%d)",
+						"%s led_slot_state expected = (%u) != actual (%u)",
 						led_slot_id(se), led, after_set);
 			}
 		}
@@ -221,7 +247,7 @@ START_TEST(test_led_by_path)
 	bool devices_found = false;
 	led_status_t status = led_slots_get(ctx, &sl);
 
-	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_slots_get %d", status);
+	ck_assert_msg(status == LED_STATUS_SUCCESS, "led_slots_get %u", status);
 	if (status == LED_STATUS_SUCCESS) {
 		struct led_slot_list_entry *se;
 
@@ -236,7 +262,7 @@ START_TEST(test_led_by_path)
 
 				status = led_device_name_lookup(device_node, normalized);
 				ck_assert_msg(status == LED_STATUS_SUCCESS,
-						"led_device_name_lookup %d", status);
+						"led_device_name_lookup %u", status);
 				if (status != LED_STATUS_SUCCESS)
 					return;
 
@@ -251,7 +277,7 @@ START_TEST(test_led_by_path)
 					LED_IBPI_PATTERN_LOCATE : LED_IBPI_PATTERN_NORMAL;
 
 				status = led_set(ctx, normalized, expected);
-				ck_assert_msg(status == LED_STATUS_SUCCESS, "led_set %d", status);
+				ck_assert_msg(status == LED_STATUS_SUCCESS, "led_set %u", status);
 				if (status != LED_STATUS_SUCCESS)
 					return;
 
@@ -260,7 +286,7 @@ START_TEST(test_led_by_path)
 				led_via_slot = led_slot_state(se);
 
 				ck_assert_msg(expected == led_via_slot,
-						"Retrieved state %d != %d expected",
+						"Retrieved state %u != %u expected",
 						led_via_slot, expected);
 				if (expected != led_via_slot)
 					return;
