@@ -47,6 +47,8 @@
 #include "status.h"
 #include "utils.h"
 
+#include <lib/libled_internal.h>
+
 /**
  */
 #define TIMESTAMP_PATTERN    "%b %d %T "
@@ -69,16 +71,22 @@ struct log_level_info log_level_infos[] = {
 char *get_text(const char *path, const char *name)
 {
 	char temp[PATH_MAX];
+	int ret;
 
-	snprintf(temp, sizeof(temp), "%s/%s", path, name);
+	ret = snprintf(temp, sizeof(temp), "%s/%s", path, name);
+	if (ret < 0 || ret >= PATH_MAX)
+		return NULL;
 	return buf_read(temp);
 }
 
 char *get_text_to_dest(const char *path, const char *name, char *dest, size_t dest_len)
 {
 	char temp[PATH_MAX];
+	int ret;
 
-	snprintf(temp, sizeof(temp), "%s/%s", path, name);
+	ret = snprintf(temp, sizeof(temp), "%s/%s", path, name);
+	if (ret < 0 || ret >= PATH_MAX)
+		return NULL;
 	return buf_read_to_dest(temp, dest, dest_len);
 }
 
@@ -390,7 +398,7 @@ char *str_cpy(char *dest, const char *src, size_t size)
 static int _str_to_num(const char *strptr, char **endptr, int base, unsigned long *n, int is_signed)
 {
 	char *c;
-	int sign_occured = 0;
+	int sign_occurred = 0;
 
 	assert(n);
 	if (!strptr)
@@ -400,9 +408,9 @@ static int _str_to_num(const char *strptr, char **endptr, int base, unsigned lon
 		*n = (unsigned long)strtol(strptr, &c, base);
 	else {
 		while ((*strptr == '-' || *strptr == '+' || isspace(*strptr)) &&
-				*strptr != '\0' && !sign_occured) {
+				*strptr != '\0' && !sign_occurred) {
 			if (*strptr == '-' || *strptr == '+')
-				sign_occured = 1;
+				sign_occurred = 1;
 			strptr++;
 		}
 		*n = strtoul(strptr, &c, base);
@@ -470,7 +478,7 @@ char *get_path_hostN(const char *path)
 	return s;
 }
 
-int match_string(const char *string, const char *pattern)
+int match_string(struct led_ctx *ctx, const char *string, const char *pattern)
 {
 	int status;
 	regex_t regex;
@@ -483,7 +491,9 @@ int match_string(const char *string, const char *pattern)
 
 	status = regcomp(&regex, pattern, REG_EXTENDED);
 	if (status != 0) {
-		printf("regecomp failed, ret=%d", status);
+		lib_log(ctx, LED_LOG_LEVEL_ERROR,
+			"Failed to initialize regular expression pattern (%s), regcomp ret=%d",
+			pattern, status);
 		return 0;
 	}
 
@@ -702,7 +712,7 @@ status_t set_verbose_level(struct ledmon_conf *conf, int log_level)
  * This is internal array holding names of IBPI pattern. Logging routines use
  * this entries to translate enumeration type values into the string.
  */
-const char *ibpi_str[led_ibpi_pattern_count] = {
+const char *ibpi_str[LED_IBPI_PATTERN_COUNT] = {
 	[LED_IBPI_PATTERN_UNKNOWN]        = "UNKNOWN",
 	[LED_IBPI_PATTERN_NORMAL]         = "NORMAL",
 	[LED_IBPI_PATTERN_ONESHOT_NORMAL] = "ONESHOT_NORMAL",
@@ -724,7 +734,7 @@ const char *ibpi2str_table(enum led_ibpi_pattern ibpi, const char *names[], char
 {
 	const char *ret;
 
-	if (ibpi >= 0 && ibpi < led_ibpi_pattern_count)
+	if (ibpi >= 0 && ibpi < LED_IBPI_PATTERN_COUNT)
 		ret = names[ibpi];
 	else
 		ret = NULL;
