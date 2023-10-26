@@ -55,7 +55,7 @@ AC_CONFIG_HEADERS([config_ac.h])
 AM_CFLAGS='-Wall -I../config'
 AM_CPPFLAGS='-D_DEBUG -D_GNU_SOURCE -D_DEFAULT_SOURCE -DDMALLOC_DISABLE -DBUILD_LABEL=\""$(BUILD_LABEL)"\"'
 
-AC_DEFUN([AX_AM_CFLAGS_ADD],[AX_CHECK_COMPILE_FLAG($1, AM_CFLAGS="$AM_CFLAGS $1")])
+AC_DEFUN([AX_AM_CFLAGS_ADD],[AX_CHECK_COMPILE_FLAG($1, AM_CFLAGS="$AM_CFLAGS $1", , -Werror)])
 AX_AM_CFLAGS_ADD([-Wformat -Wformat-security -Werror])
 AX_AM_CFLAGS_ADD([-Wformat-overflow=2])
 AX_AM_CFLAGS_ADD([-Wno-strict-overflow])
@@ -152,6 +152,8 @@ if test "x${with_test}" = "xyes"; then
     if test "x${with_library}" = "xno"; then
         AC_MSG_ERROR([--enable-library is required when specifying --enable-test])
     fi
+    ENABLE_TEST=" -DENABLE_TEST"
+    AC_SUBST([ENABLE_TEST])]
 fi
 
 AM_CONDITIONAL([WITH_LIBRARY], [test "x$with_library" = "xyes"])
