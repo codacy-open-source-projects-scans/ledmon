@@ -129,7 +129,8 @@ AS_IF([test "x$enable_systemd" = xyes], [SYSTEMD_STR=yes], [SYSTEMD_STR=no])
 AM_CONDITIONAL([SYSTEMD_CONDITION], [test "$SYSTEMD_STR" = yes])
 
 # target directory for ledmon service file
-AC_SUBST([SYSTEMD_PATH], "$(pkg-config systemd --variable=systemdsystemunitdir)")
+SYSTEMD_PATH="$(pkg-config systemd --variable=systemdsystemunitdir)"
+AC_SUBST([SYSTEMD_PATH])
 
 # Add configure option to build without library
 AC_ARG_ENABLE([library],
@@ -152,8 +153,7 @@ if test "x${with_test}" = "xyes"; then
     if test "x${with_library}" = "xno"; then
         AC_MSG_ERROR([--enable-library is required when specifying --enable-test])
     fi
-    ENABLE_TEST=" -DENABLE_TEST"
-    AC_SUBST([ENABLE_TEST])]
+    AC_SUBST([ENABLE_TEST], '-DENABLE_TEST')
 fi
 
 AM_CONDITIONAL([WITH_LIBRARY], [test "x$with_library" = "xyes"])
@@ -184,7 +184,7 @@ AC_MSG_RESULT([
 $PACKAGE_NAME $VERSION configuration:
 
   Source code location:    ${srcdir}
-  Preprocessor flags:      ${AM_CPPFLAGS} ${CPPFLAGS}
+  Preprocessor flags:      ${AM_CPPFLAGS} ${CPPFLAGS} ${ENABLE_TEST}
   C compiler flags:        ${AM_CFLAGS} ${CFLAGS}
   Linker flags:            ${AM_LDFLAGS} ${LDFLAGS}
   Common install location: ${prefix}
