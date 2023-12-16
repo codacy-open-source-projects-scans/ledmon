@@ -163,21 +163,6 @@ static struct led_ctx *ctx;
 
 struct ledmon_conf conf;
 
-static int possible_params[] = {
-	OPT_HELP,
-	OPT_VERSION,
-	OPT_LIST_CTRL,
-	OPT_LISTED_ONLY,
-	OPT_LIST_SLOTS,
-	OPT_GET_SLOT,
-	OPT_SET_SLOT,
-	OPT_CNTRL_TYPE,
-	OPT_DEVICE,
-	OPT_SLOT,
-	OPT_STATE,
-	COMMON_GETOPT_ARGS
-};
-
 static int possible_params_modes[] = {
 	OPT_HELP,
 	OPT_VERSION,
@@ -714,21 +699,26 @@ bool _setup_mode_options(struct request * const req, char **shortopts, struct op
 bool _cmdline_parse_params(int opt, int opt_index, struct option *longopts, struct request *req)
 {
 	switch (opt) {
-	int log_level;
 
 	case 0:
-		switch (get_option_id(longopts[opt_index].name)) {
+	{
+		int option_id = get_option_id(longopts[opt_index].name);
+
+		switch (option_id) {
 		case OPT_LOG_LEVEL:
-			log_level = get_option_id(optarg);
+		{
+			int log_level = get_option_id(optarg);
 			if (log_level != -1)
 				set_verbose_level(&conf, log_level);
 			else
 				return false;
 			break;
+		}
 		default:
-			set_verbose_level(&conf, possible_params[opt_index]);
+			set_verbose_level(&conf, option_id);
 		}
 		break;
+	}
 	case 'l':
 		set_log_path(&conf, optarg);
 		break;
@@ -1050,6 +1040,34 @@ static led_status_t _init_ledctl_conf(void)
 	return ledmon_init_conf(&conf, LED_LOG_LEVEL_WARNING, LEDCTL_DEF_LOG_FILE);
 }
 
+static const char *get_log_level_name(enum led_log_level_enum log_level)
+{
+	switch (log_level) {
+	case LED_LOG_LEVEL_UNDEF:
+		return "UNDEF";
+	case LED_LOG_LEVEL_QUIET:
+		return "QUIET";
+	case LED_LOG_LEVEL_ERROR:
+		return "ERROR";
+	case LED_LOG_LEVEL_WARNING:
+		return "WARNING";
+	case LED_LOG_LEVEL_INFO:
+		return "INFO";
+	case LED_LOG_LEVEL_DEBUG:
+		return "DEBUG";
+	case LED_LOG_LEVEL_ALL:
+		return "ALL";
+	default:
+		return "UNDEF";
+	}
+}
+
+static void print_configuration(void)
+{
+	printf("LOG_LEVEL=%s\n", get_log_level_name(conf.log_level));
+	printf("LOG_PATH=%s\n", conf.log_path);
+}
+
 /**
  * @brief Propagate the configuration setting to the library settings
  */
@@ -1137,8 +1155,11 @@ int main(int argc, char *argv[])
 	_unset_unused_options();
 
 	status = _cmdline_parse(argc, argv, &req);
-	if (status != LED_STATUS_SUCCESS || test_params)
+	if (status != LED_STATUS_SUCCESS || test_params) {
+		if (test_params)
+			print_configuration();
 		exit(status);
+	}
 
 	status = log_open(&conf);
 	if (status != LED_STATUS_SUCCESS)
