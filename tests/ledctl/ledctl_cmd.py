@@ -3,11 +3,15 @@
 
 import subprocess
 import logging
+from os import listdir
+from os.path import join, realpath, exists
 import re
 
 LOGGER = logging.getLogger(__name__)
 
+
 class Slot:
+
     def __init__(self, cntrl_type, slot_id, state, device_node):
         self.cntrl_type = cntrl_type
         self.slot = slot_id
@@ -17,13 +21,20 @@ class Slot:
             self.device_node = device_node
 
     def __str__(self):
-        return "slot: %s state: %s device: %s" % (self.slot, self.state, self.device_node)
+        return "slot: %s device: %s" % (self.slot, self.device_node)
+
 
 class LedctlCmd:
 
     slot_mgmt_ctrls = ["SCSI", "VMD", "NPEM"]
 
-    def __init__(self, ledctl_bin=["none"], slot_filters="none", controller_filters="none"):
+    # These base states should be supported by all controllers
+    base_states = ["failure", "locate", "normal", "rebuild"]
+
+    def __init__(self,
+                 ledctl_bin=["none"],
+                 slot_filters="none",
+                 controller_filters="none"):
         # We cares about first entry (not full valdation but it is enough for test purposes)
         self.bin = ledctl_bin[0]
 
@@ -32,7 +43,9 @@ class LedctlCmd:
         self.slot_filters = slot_filters
 
         # Give possibility to skip controllers.
-        self.slot_ctrls = [i for i in self.slot_mgmt_ctrls if i not in controller_filters]
+        self.slot_ctrls = [
+            i for i in self.slot_mgmt_ctrls if i not in controller_filters
+        ]
 
     def run_ledctl_cmd(self, params: list, output=False, check=True):
         params.insert(0, "sudo")
@@ -51,17 +64,35 @@ class LedctlCmd:
     # Ledctl Commands
 
     def set_slot_state(self, slot: Slot, state):
-        self.run_ledctl_cmd([ "--set-slot", "--controller-type", slot.cntrl_type,
-                              "--slot", slot.slot,  "--state", state])
+        self.run_ledctl_cmd([
+            "--set-slot", "--controller-type", slot.cntrl_type, "--slot",
+            slot.slot, "--state", state
+        ])
+
+    def set_device_state(self, slot: Slot, state):
+        self.run_ledctl_cmd([
+            "--set-slot", "--controller-type", slot.cntrl_type, "--device",
+            slot.device_node, "--state", state
+        ])
 
     def get_slot(self, slot: Slot):
-        out = self.run_ledctl_cmd_decode(["--get-slot", "--controller-type", slot.cntrl_type,
-                                          "--slot", slot.slot])
+        out = self.run_ledctl_cmd_decode([
+            "--get-slot", "--controller-type", slot.cntrl_type, "--slot",
+            slot.slot
+        ])
+        return self.parse_slot_line(slot.cntrl_type, out)
+
+    def get_slot_by_device(self, slot: Slot):
+        out = self.run_ledctl_cmd_decode([
+            "--get-slot", "--controller-type", slot.cntrl_type, "--device",
+            slot.device_node
+        ])
         return self.parse_slot_line(slot.cntrl_type, out)
 
     def list_slots(self, controller_type):
         rc = []
-        out = self.run_ledctl_cmd_decode(["--list-slots", "--controller-type", controller_type])
+        out = self.run_ledctl_cmd_decode(
+            ["--list-slots", "--controller-type", controller_type])
 
         for line in out.split("\n"):
             s = self.parse_slot_line(controller_type, line)
@@ -77,7 +108,9 @@ class LedctlCmd:
         try:
             self.run_ledctl_cmd(["-T"])
         except subprocess.CalledProcessError:
-            raise AssertionError("Test flag is disabled. Please add configure option \"--enable-test\".")
+            raise AssertionError(
+                "Test flag is disabled. Please add configure option \"--enable-test\"."
+            )
 
     # Helper Functions
 
@@ -103,6 +136,16 @@ class LedctlCmd:
                     break
         return rc.keys()
 
+    # Respect controller filter
+    def get_slots(self, cntrl):
+        if cntrl not in self.slot_ctrls:
+            raise AssertionError(f"Controller \"{cntrl}\" filtered out")
+        return self.list_slots(cntrl)
+
+    # Respect controller filter
+    def get_slots_with_device(self, cntrl):
+        return [s for s in self.get_slots(cntrl) if s.device_node is not None]
+
     def get_all_slots(self):
         all_slots = []
         for controller in self.get_controllers_with_slot_functionality():
@@ -121,10 +164,29 @@ class LedctlCmd:
 
         match = slot_line_re.match(line)
         if match is None:
-            raise Exception(f"Text line '{line}' did not match regex '{regex_pat}'")
+            raise Exception(
+                f"Text line '{line}' did not match regex '{regex_pat}'")
 
-        slot = Slot(controller, match.group(1).strip(), match.group(2).strip(), match.group(3).strip())
+        slot = Slot(controller,
+                    match.group(1).strip(),
+                    match.group(2).strip(),
+                    match.group(3).strip())
 
         if self.is_slot_excluded(slot):
-                return None
+            return None
         return slot
+
+    # Other
+
+    def get_mp_nodes(self):
+        sys_block_path = "/sys/block"
+        nvme_subsys_subpath = "/nvme-subsystem/nvme-subsys"
+
+        mp_drives = []
+        for f in listdir(sys_block_path):
+            rp = realpath(join(sys_block_path, f))
+            if nvme_subsys_subpath in rp:
+                node = join("/dev", f)
+                if exists(node):
+                    mp_drives.append(node)
+        return mp_drives
