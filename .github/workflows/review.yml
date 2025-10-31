@@ -1,0 +1,45 @@
+name: review
+on: [pull_request]
+env:
+  cflags: -Werror
+permissions: read-all
+jobs:
+  commits_review:
+    name: Commits review
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: 0
+    - name: 'Move prepared .checkpatch.conf file to main directory'
+      run: mv .github/.checkpatch.conf .
+    - name: Run checkpatch review
+      uses: webispy/checkpatch-action@v9
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    - name: Get modified files
+      id: changed-files
+      uses: tj-actions/changed-files@v45
+      with:
+        files_ignore: |
+          .checkpatch.conf
+          .github/**
+          LICENSES/**
+          .gitignore
+          autogen.sh
+          pytest.ini
+          *.yapf
+          COPYING*
+          */*.md
+          CHANGELOG.md
+          README.md
+    - name: Run license review
+      env:
+        ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+      run: |
+        for FILE in ${ALL_CHANGED_FILES}; do
+        python3.11 ./tests/licensing.py --file ${FILE} --log-level=INFO
+        done

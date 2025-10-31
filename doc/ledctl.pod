@@ -1,0 +1,490 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2009 Intel Corporation.
+
+# Intel(R) Enclosure LED Utilities
+
+=head1 NAME
+
+ledctl - Intel(R) LED control application for a storage enclosures.
+
+=head1 SYNOPSIS
+
+B<ledctl> [I<MODE>] [I<OPTIONS>] ...
+
+=head1 DESCRIPTION
+
+Ledctl is a user-space application designed to control LEDs associated with each
+slot in an enclosure or a drive bay. Root privileges are required for its operation.
+
+
+The ledctl application facilitates LED management for SAS/SATA and PCIe storage devices.
+
+=head4 Supported protocols/methods for LED management are:
+
+=over
+
+=item
+
+B<SES-2 and SMP> for SAS devices,
+
+=item
+
+B<LED messages over SGPIO> for SATA,
+
+=item
+
+B<VMD and NPEM> for PCIe.
+
+=back
+
+B<SAF-TE> protocol is not supported.
+
+For SAS/SATA storage, supporting controllers may transmit LED management
+information to the backplane controllers via the SGPIO interface. The SGPIO
+bus carries bit patterns, which translate into LED blink patterns in
+accordance with the International Blinking Pattern Interpretation (IBPI)
+of SFF-8489 specification for SGPIO.
+Please note some enclosures do not stick closely to the SFF-8489
+specification. It might occur that the enclosure processor will accept
+the IBPI pattern but will not blink LEDs according to SFF-8489
+specification.  Or, it may have a limited number of patterns supported.
+
+The ledctl application has been verified to work with Intel(R) storage
+controllers (i.e. Intel(R) AHCI controller and Intel(R) SAS controller).
+The application might work with storage controllers of other vendors
+(especially SCSI/SAS controllers). However, storage controllers of other
+vendors have not been tested.
+
+The ledmon application has the highest priority when accessing LEDs.
+Meaning that some patterns set by ledctl may have no effect if ledmon is running
+(exception: Locate pattern).
+
+The ledctl application is a part of Intel(R) Enclosure LED Utilities.
+
+=head4 The ledctl utilizes the following documents as references:
+
+=over
+
+=item
+
+SGPIO (Serial GPIO) - SFF-8485
+
+=item
+
+IBPI (International Blinking Pattern Interpretation) - SFF-8489
+
+=item
+
+LED Enclosure management messages - AHCI specification rev 1.3,
+section 12.2.1.
+
+=item
+
+SAS (Serial Attached SCSI) - T10/1760-D
+
+=item
+
+SES-2 (SCSI Enclosure Services-2) - T10/1559-D
+
+=item
+
+SMP (Serial Management Protocol) - T10/1760-D
+
+=item
+
+NPEM (Native PCIe Enclosure Management) - PCIe base specification rev 4.0
+
+=item
+
+VMD (Intel(R) Volume Management Device) - Intel(R) VROC (VMD NVMe RAID) Quick
+
+Configuration Guide rev 1.2
+
+=back
+
+=head2 Pattern Names
+
+The ledctl application accepts the following names for I<pattern_name> argument
+according to SFF-8489 specification.
+
+=over 8
+
+=item B<locate>
+
+Turns Locate LED associated with the given device(s) on.
+
+=item B<locate_off>
+
+Turns only Locate LED off.
+
+=item B<locate_and_failure>
+
+Turns Locate LED and Failure LED on.
+
+=item B<normal>
+
+Turns Status LED, Failure LED and Locate LED off.
+
+=item B<off>
+
+Turns only Status LED and Failure LED off.
+
+=item B<ica> or B<degraded>
+
+Visualizes "In a Critical Array" pattern.
+
+=item B<rebuild>
+
+Visualizes "Rebuild" pattern.
+
+=item B<ifa> or B<failed_array>
+
+Visualizes "In a Failed Array" pattern.
+
+=item B<hotspare>
+
+Visualizes "Hotspare" pattern.
+
+=item B<pfa>
+
+Visualizes "Predicted Failure Analysis" pattern.
+
+=item B<failure> or B<disk_failed>
+
+Visualizes "Failure" pattern.
+
+=item B<ses_abort>
+
+SES-2 R/R ABORD
+
+=item B<ses_rebuild>
+
+SES-2 REBUILD/REMAP
+
+=item B<ses_ifa>
+
+SES-2 IN FAILED ARRAY
+
+=item B<ses_ica>
+
+SES-2 IN CRIT ARRAY
+
+=item B<ses_cons_check>
+
+SES-2 CONS CHECK
+
+=item B<ses_hotspare>
+
+SES-2 HOT SPARE
+
+=item B<ses_rsvd_dev>
+
+SES-2 RSVD DEVICE
+
+=item B<ses_ok>
+
+SES-2 OK
+
+=item B<ses_ident>
+
+SES-2 IDENT
+
+=item B<ses_rm>
+
+SES-2 REMOVE
+
+=item B<ses_insert>
+
+SES-2 INSERT
+
+=item B<ses_missing>
+
+SES-2 MISSING
+
+=item B<ses_dnr>
+
+SES-2 DO NOT REMOVE
+
+=item B<ses_active>
+
+SES-2 ACTIVE
+
+=item B<ses_enable_bb>
+
+SES-2 ENABLE BYP B
+
+=item B<ses_enable_ba>
+
+SES-2 ENABLE BYP A
+
+=item B<ses_devoff>
+
+SES-2 DEVICE OFF
+
+=item B<ses_fault>
+
+SES-2 FAULT
+
+=item B<ses_prdfail>
+
+SES-2 PRDFAIL
+
+=back
+
+=head2 Patterns Translation
+
+When a non SES-2 pattern is sent to device an enclosure automatic
+translation is done.
+
+=over 8
+
+=item B<locate>
+
+I<locate> is translated to I<ses_ident>
+
+=item B<locate_off>
+
+I<locate_off> is translated to I<~ses_ident>
+
+=item B<normal> or B<off>
+
+I<normal> or I<off> is translated to I<ses_ok>
+
+=item B<ica> or B<degraded>
+
+I<ica> or I<degraded> is translated to I<ses_ica>
+
+=item B<rebuild>
+
+I<rebuild> is translated to I<ses_rebuild>
+
+=item B<ifa> or B<failed_array>
+
+I<ifa> or I<failed_array> is translated to I<ses_ifa>
+
+=item B<hotspare>
+
+I<hotspare> is translated to I<ses_hotspare>
+
+=item B<pfa>
+
+I<pfa> is translated to I<ses_prdfail>
+
+=item B<failure> or B<disk_failed>
+
+I<failure> or I<disk_failed> is translated to I<ses_fault>
+
+=back
+
+=head1 MODES AND MODE SPECIFIC OPTIONS
+
+This chapter outlines the modes and options applicable to specific modes. If no mode is
+specified, the default is IBPI mode.
+
+=head2 B<-I> or B<--ibpi>
+
+Sets pattern on given devices. Allows ledctl to determine the best controller automatically. Must be
+followed by IBPI option. By default, it checks all devices and may update states on different
+drives than requested if state change is determined (generally it happens for devices in raid
+array).
+
+=over 4
+
+=item B<PATTERN={ device1 device2 }> or B<PATTERN=device1,device2>
+
+The IBPI option accepts device lists in two formats: comma-separated elements and elements
+enclosed in curly braces with spaces between them. Refer to "Pattern names" for supported states.
+For usage examples, see "EXAMPLES".
+
+=item B<-x> or B<--listed-only>
+
+Suppresses default behavior, changes state only on devices listed in CLI. It is optional.
+
+=back
+
+=head2 B<-L> or B<--list-controllers>
+
+Prints information (system path and type) of all controllers detected.
+
+=head2 B<-B> or B<--default-controller>
+
+There is a possibility that device is supported by more than one controller (e.g. NPEM and VMD).
+In that case, this command can be used to query ledctl to return preferred controller type.
+The returned controller type is used by subset of routines which do not take controller type
+directly (e.g. --get-slot, --list-slots, --set-slot).
+
+Prints preferred controller type which should be used to control LED for this device.
+Must be followed by B<--device>, for which controller will be printed.
+
+=head2 B<-P> or B<--list-slots>
+
+Prints all slots for the controller type. Must be followed by B<--controller-type>.
+
+=head2 B<-G> or B<--get-slot>
+
+Displays specific slot details. Must be followed by B<--controller-type> and slot identifier
+B<--device> or B<--slot>. B<--print> can be used to control output.
+
+=over 4
+
+=item B<-r I<print>> or B<--print>=I<print>
+
+Optional parameter for B<--get-slot>. It is utilized to retrieve a specific property
+from the output. Supported values include: slot, device, and state.
+
+=back
+
+=head2 B<-S> or B<--set-slot>
+
+Changes led state for slot. Must be followed by B<--controller-type>, slot identifier B<--device>
+or B<--slot> and B<--state>.
+
+=over 4
+
+=item B<-p I<state>> or B<--state=I<state>>
+
+It is mandatory for B<--set-slot>. It provides the state to be set for the slot. Refer to
+"Pattern names" for supported states list.
+
+=back
+
+=head2 SLOT MANAGEMENT OPTIONS
+
+This section describes options necessary by various slot management modes.
+
+=over 4
+
+=item B<-n I<controller_type>> or B<--controller-type=I<controller_type>>
+
+Controller type chosen for the request. It aggregates multiple controllers of the same
+type. Supported types are: VMD, NPEM and SCSI.
+
+=item B<-d I<device>> or B<--device=I<device>>
+
+Block device node for device attached to the slot. It can be used instead of B<--slot>.
+
+=item B<-p I<slot>> or B<--slot=I<slot>>
+
+Unique slot identifier. It can be used instead of B<--device>. Use B<--list-slots> to determine slot
+identifiers. Slot definition depends on the controller and is unique across all controllers of the
+same type. The slot identifier is always available, even if a device is not connected.
+
+=back
+
+=head1 GENERAL OPTIONS
+
+This section describes options available for every mode.
+
+=over 4
+
+=item B<-l I<path>> or B<--log>=I<path>
+
+Sets a path to log file. If this option is not specified then default log file
+F</var/log/ledctl.log> is used.
+
+=item B<-h> or B<--help>
+
+Prints help text out. Use B<--MODE --help> to get help for requested mode or B<--help> to
+get general help.
+
+=item B<-v> or B<--version>
+
+Displays version of ledctl and information about the license.
+
+=item B<--log_level=I<log_level>>
+
+Set the application's logging level. Available levels, listed from most verbose to least verbose,
+include: ALL, DEBUG, INFO, WARNING, ERROR, and QUIET. The default setting is WARNING.
+
+=back
+
+=head1 FILES
+
+=over 8
+
+=item F</var/log/ledctl.log>
+
+Global log file, used by all instances of ledctl application. To force logging
+to user defined file use I<-l> option switch.
+
+=back
+
+=head1 EXAMPLES
+
+=head2 The following example illustrates how to set I<locate> on a single block device. Note that
+all remaining LEDs, might be changed.
+
+C<ledctl --ibpi locate=/dev/sda>
+
+=head2 The following example illustrates how to set I<locate_off> on a single block device.
+
+C<ledctl --ibpi --listed-only locate_off=/dev/sda>
+
+=head2 The following example illustrates how to set I<off> on the given devices. It uses second
+format of the device list.
+
+C<ledctl --ibpi --listed-only off={ /dev/sda /dev/sdb }>
+
+=head2 The following example illustrates how to set I<locate> and I<rebuild> on different devices
+at the same time. It uses the second format of the device list.
+
+C<ledctl --ibpi --listed-only locate={ /dev/sdb } rebuild={ /sys/block/sdc }>
+
+=head2 The following example illustrates how to I<locate> on three block devices. It uses the first
+format of the device list.
+
+C<ledctl --ibpi --listed-only locate=/dev/sda,/dev/sdb,/dev/sdc>
+
+=head2 The following example illustrates how to set I<locate> and I<rebuild> on different devices
+at the same time. It uses the first format of the device list.
+
+C<ledctl --ibpi --listed-only locate=/dev/sdb rebuild=/sys/block/sdc>
+
+=head2 The following example illustrates how to set I<locate> and I<rebuild> on different devices
+at the same time. It uses the both formats of the device list.
+
+C<ledctl --ibpi --listed-only locate={ /dev/sdb } rebuild=/sys/block/sdc>
+
+=head2 The following example illustrates how to get all detected controllers.
+
+C<ledctl --list-controllers>
+
+=head2 The following example illustrates how to get all slots for controller type I<NPEM>.
+
+C<ledctl --list-slots --controller-type=npem>
+
+=head2 The following example illustrates how to get particular slot with I<device> specified, for
+controller type I<SCSI>. Print I<state> only.
+
+C<ledctl --get-slot --controller-type=scsi --device=/dev/sda --print=state>
+
+=head2 The following example illustrates how to get particular slot with I<slot> specified, for
+controller type I<NPEM>. Print I<device> only.
+
+C<ledctl --get-slot --controller-type=npem --slot=10000:02:04.0 --print=device>
+
+=head2 The following example illustrates how to set I<locate> for slot with I<device> specified,
+for controller type I<VMD>.
+
+C<ledctl --set-slot --controller-type=vmd --device=/dev/nvme0n1 --state=locate>
+
+=head2 The following example illustrates how to set I<failure> for slot with I<slot> specified
+for controller type I<VMD>.
+
+C<ledctl --set-slot --controller-type=vmd --slot=1 --state=failure>
+
+=head1 LICENSE
+
+Copyright (c) 2009-2024 Intel Corporation.
+
+This program is distributed under the terms of the GNU General Public License
+as published by the Free Software Foundation.
+
+=head1 SEE ALSO
+
+ledmon(8), ledmon.conf(5)
+
+=head1 AUTHOR
+
+This manual page was written by Artur Wojcik <artur.wojcik@intel.com>. It may
+be used by others.
